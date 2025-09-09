@@ -55,7 +55,7 @@ variable "target_node" {
 
 # Master nodes
 resource "proxmox_vm_qemu" "k8s_master" {
-  count       = 3
+  count       = 1
   name        = "k8s-master-${count.index + 1}"
   target_node = var.target_node
   clone       = var.vm_template
