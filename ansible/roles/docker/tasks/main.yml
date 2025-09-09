@@ -44,9 +44,10 @@
     regexp: '            SystemdCgroup = false'
     line: '            SystemdCgroup = true'
 
-- name: Start and enable containerd
+- name: Restart containerd after configuration changes
   systemd:
     name: containerd
-    state: started
+    state: restarted
     enabled: yes
     daemon_reload: yes
+
