@@ -3,7 +3,7 @@
 
 set -e
 
-echo "Setting up Kubernetes Home Lab with Local Repository..."
+echo "Setting up Kubernetes Home Lab..."
 
 # Check if required tools are installed
 command -v terraform >/dev/null 2>&1 || { echo "Terraform is required but not installed. Aborting." >&2; exit 1; }
@@ -33,22 +33,12 @@ sleep 1
 echo "Running Ansible playbook..."
 cd ../ansible
 
-# # First setup the repository server
-# echo "Setting up repository server..."
-# ansible-playbook -i inventory/hosts.yml site.yml --limit repository
-
-# echo "Waiting for repository services to start..."
-# sleep 30
-
-# Then setup the rest of the infrastructure
+# Setup the Kubernetes infrastructure
 echo "Setting up Kubernetes cluster..."
-ansible-playbook -i inventory/hosts.yml site.yml --skip-tags repository
+ansible-playbook -i inventory/hosts.yml site.yml
 
 echo "Kubernetes cluster setup complete!"
 echo ""
-#echo "Repository Server: http://$(terraform output -raw repo_server_ip)"
-echo "Docker Registry: http://$(terraform output -raw repo_server_ip):5000"
-echo "Registry UI: http://$(terraform output -raw repo_server_ip):8081"
-echo "Portainer: http://$(terraform output -raw repo_server_ip):9000"
+echo "Load Balancer: http://$(terraform output -raw lb_ip)"
 echo ""
 echo "Access your cluster with: kubectl --kubeconfig ~/.kube/config get nodes"

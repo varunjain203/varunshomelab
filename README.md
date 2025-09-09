@@ -25,35 +25,23 @@ This project sets up a complete Kubernetes cluster in a Proxmox home lab environ
 
 ## Setup Instructions
 
-### 1. Initial Repository Setup (First Time Only)
+### 1. Prepare Proxmox Template
 
-If this is your first deployment, set up the repository server first:
-
-```bash
-# Run the repository setup script
-chmod +x scripts/setup-repository.sh
-./scripts/setup-repository.sh --first-run
-```
-
-This creates the Ubuntu template and pre-populates the Docker registry.
-
-### 2. Prepare Proxmox Template
-
-If you already have a repository server, create the template using local images:
+Create the Ubuntu template:
 
 ```bash
-# Download from local repository
-wget -O /tmp/jammy-server-cloudimg-amd64.img http://192.168.1.98/images/ubuntu-22.04-amd64.img
+# Download Ubuntu cloud image
+wget -O /tmp/jammy-server-cloudimg-amd64.img https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
 
 # Create VM and convert to template
-
 root@catan:/var/lib/vz/template/iso# qm create 9000 --memory 2048 --net0 virtio,bridge=vmbr0 --scsihw virtio-scsi-pci
 root@catan:/var/lib/vz/template/iso# qm set 9000 --scsi0 local-lvm:0,import-from=/var/lib/vz/template/iso/jammy-server-cloudimg-amd64.img
 root@catan:/var/lib/vz/template/iso# qm set 9000 --ide2 local-lvm:cloudinit
 root@catan:/var/lib/vz/template/iso# qm set 9000 --boot order=scsi0
 root@catan:/var/lib/vz/template/iso# qm template 9000
+```
 
-### 3. Configure Variables
+### 2. Configure Variables
 
 Copy and edit the Terraform variables:
 
@@ -70,7 +58,7 @@ PUBLIC_SSH_KEY = "put-contents-of-id_rsa.pub"
 target_node = "name-of-the-proxmox-node"
 
 
-### 4. Deploy the Lab
+### 3. Deploy the Lab
 
 Run the setup script:
 
@@ -81,12 +69,11 @@ chmod +x scripts/setup.sh
 
 This will:
 1. Create VMs in Proxmox using Terraform
-2. Setup the local repository server first
-3. Generate Ansible inventory
-4. Configure all nodes with Ansible using local repositories
-5. Set up the Kubernetes cluster
+2. Generate Ansible inventory
+3. Configure all nodes with Ansible
+4. Set up the Kubernetes cluster
 
-### 5. Access the Cluster
+### 4. Access the Cluster
 
 The kubeconfig will be available on the first master node:
 
@@ -105,21 +92,12 @@ kubectl get nodes
 
 # Network Configuration
 
-- **Repository Server**: 192.168.1.98
 - **Load Balancer**: 192.168.1.140
 - **Masters**: 192.168.1.120-102
 - **Workers**: 192.168.1.130-112
 - **Pod Network**: 10.244.0.0/16
 
-## Repository Services
 
-The local repository server provides:
-
-- **Docker Registry**: Private registry at `192.168.1.98:5000`
-- **Ubuntu Cloud Images**: Local mirror at `http://192.168.1.98/images/`
-- **APT Packages**: Local mirrors for Ubuntu, Kubernetes, and Docker packages
-- **Web UI**: Registry management at `http://192.168.1.98:8081`
-- **Portainer**: Container management at `http://192.168.1.98:9000`
 
 ## Monitoring
 
@@ -134,72 +112,16 @@ chmod +x scripts/destroy.sh
 ./scripts/destroy.sh
 ```
 
-## Repository Management
 
-### Using the Local Docker Registry
-
-Configure Docker to use the local registry:
-
-```bash
-# Add insecure registry to Docker daemon
-sudo tee /etc/docker/daemon.json <<EOF
-{
-  "insecure-registries": ["192.168.1.98:5000"],
-  "registry-mirrors": ["http://192.168.1.98:5000"]
-}
-EOF
-
-sudo systemctl restart docker
-```
-
-Push images to local registry:
-
-```bash
-# Tag image for local registry
-docker tag nginx:latest 192.168.1.98:5000/nginx:latest
-
-# Push to local registry
-docker push 192.168.1.98:5000/nginx:latest
-```
-
-### Managing Repository Content
-
-Access the repository management interfaces:
-
-- **Repository Status**: http://192.168.1.98
-- **Docker Registry UI**: http://192.168.1.98:8081
-- **Container Management**: http://192.168.1.98:9000
-- **Cloud Images**: http://192.168.1.98/images/
-- **APT Packages**: http://192.168.1.98/ubuntu/
-
-### Updating Repository Content
-
-To refresh images and packages:
-
-```bash
-# SSH to repository server
-ssh ubuntu@192.168.1.98
-
-# Update cloud images
-cd /opt/repository/images
-wget -O ubuntu-22.04-amd64.img https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
-
-# Update APT mirrors
-/opt/repository/create-apt-mirror.sh
-
-# Restart services
-cd /opt/repository
-docker-compose restart
-```
 
 ## Offline Operation
 
 Once fully set up, the lab can operate completely offline:
 
 1. **VM Templates**: Created from local cloud images
-2. **Container Images**: Pulled from local Docker registry
-3. **System Packages**: Installed from local APT mirrors
-4. **Kubernetes Components**: Downloaded from local mirrors
+2. **Container Images**: Pulled from public registries
+3. **System Packages**: Installed from standard repositories
+4. **Kubernetes Components**: Downloaded from standard sources
 
 ## Customization
 
@@ -219,54 +141,21 @@ Update IP ranges and network configuration in the Terraform variables.
 
 1. **VM Creation Issues**: Check Proxmox template exists and has cloud-init
 2. **SSH Connection Issues**: Verify SSH key is correct and accessible
-3. **Repository Issues**: Check repository server is running and accessible
-4. **Package Installation Issues**: Verify local APT mirrors are populated
-5. **Docker Registry Issues**: Check registry is running on port 5000
-6. **Kubernetes Join Issues**: Check firewall rules and network connectivity
-7. **Pod Network Issues**: Verify Flannel CNI installation from local registry
-
-### Repository Server Debugging
-
-Check repository services:
-
-```bash
-ssh ubuntu@192.168.1.98
-docker ps -a                    # Check all containers
-docker-compose logs -f          # View logs
-sudo systemctl status nginx     # Check web server
-curl http://localhost/images/    # Test local access
-```
-
-### Registry Debugging
-
-Test Docker registry:
-
-```bash
-# Test registry API
-curl http://192.168.1.98:5000/v2/_catalog
-
-# Test image pull
-docker pull 192.168.1.98:5000/nginx:latest
-```
+3. **Kubernetes Join Issues**: Check firewall rules and network connectivity
+4. **Pod Network Issues**: Verify Flannel CNI installation
 
 ## Components
 
 - **Terraform**: Infrastructure provisioning
 - **Ansible**: Configuration management
-- **Repository Server**: Local package and image hosting
-- **Docker Registry**: Private container registry
-- **Nginx**: Web server for repository access
 - **Kubernetes**: Container orchestration
 - **Containerd**: Container runtime
 - **Flannel**: Pod networking
 - **HAProxy**: Load balancing
-- **Portainer**: Container management UI
 
 ## Architecture Benefits
 
-- **Bandwidth Efficiency**: No repeated downloads from internet
-- **Faster Deployments**: Local images and packages
-- **Offline Capability**: Complete air-gapped operation possible
-- **Version Control**: Consistent package versions across deployments
-- **Cost Effective**: Reduced internet bandwidth usage
-- **High Availability**: Local redundancy for critical components
+- **High Availability**: Multiple master nodes for control plane redundancy
+- **Scalability**: Easy to add or remove worker nodes
+- **Infrastructure as Code**: Reproducible deployments with Terraform and Ansible
+- **Container Orchestration**: Full Kubernetes feature set for workload management
