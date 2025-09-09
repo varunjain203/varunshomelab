@@ -4,6 +4,7 @@
 set -e
 
 echo "Setting up Kubernetes Home Lab..."
+bash create_qemu_template.sh
 
 # Check if required tools are installed
 command -v terraform >/dev/null 2>&1 || { echo "Terraform is required but not installed. Aborting." >&2; exit 1; }
