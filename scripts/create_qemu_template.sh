@@ -46,7 +46,7 @@ fi
 echo "SSH key copied successfully."
 
 # 4. SSH into the Proxmox server and execute commands
-echo "Connecting to Proxmox server to create the template..."
+echo "🚀 Connecting to Proxmox server to check/create the template..."
 
 ssh "root@$PROXMOX_HOST" <<EOF
 # Exit immediately if a command exits with a non-zero status.
@@ -54,39 +54,44 @@ set -e
 
 echo "--- Executing on Proxmox Server ---"
 
-# Check if a VM or template with the specified ID already exists
+# --- MODIFICATION 1: Check for the template first ---
+# If the template already exists, we exit successfully without doing anything.
 if qm status $VMID > /dev/null 2>&1; then
-    echo "⚠️ Warning: VM/Template $VMID already exists. Stopping and destroying it first."
-    # The '|| true' will prevent the script from exiting if the VM is already stopped.
-    qm stop $VMID || true
-    qm destroy $VMID
+    echo "✅ Template $VMID already exists. Nothing to do."
+    exit 0
 fi
 
 # Create the directory for images if it doesn't exist
 mkdir -p "$IMAGE_STORAGE_PATH"
+FULL_IMAGE_PATH="$IMAGE_STORAGE_PATH/$IMAGE_FILENAME"
 
-# Download the cloud image
-echo "Downloading Ubuntu 22.04 cloud image..."
-wget -O "$IMAGE_STORAGE_PATH/$IMAGE_FILENAME" "$IMAGE_URL"
+# --- MODIFICATION 2: Check for the image before downloading ---
+# Only download the image if it does not already exist locally.
+if [ ! -f "\$FULL_IMAGE_PATH" ]; then
+    echo "📥 Image not found. Downloading Ubuntu 22.04 cloud image..."
+    wget -O "\$FULL_IMAGE_PATH" "$IMAGE_URL"
+else
+    echo "💿 Image file already exists locally. Skipping download."
+fi
 
 # Create the VM
 echo "🔧 Creating new VM (ID: $VMID)..."
 qm create $VMID --name "ubuntu-2204-cloudinit-template" --memory 2048 --net0 virtio,bridge=vmbr0 --scsihw virtio-scsi-pci
 
-# Import the downloaded disk to the 'local-lvm' storage
-echo "Importing disk to 'local-lvm'..."
-qm set $VMID --scsi0 local-lvm:0,import-from="$IMAGE_STORAGE_PATH/$IMAGE_FILENAME"
+# Import the disk
+echo "💿 Importing disk to 'local-lvm'..."
+qm set $VMID --scsi0 local-lvm:0,import-from="\$FULL_IMAGE_PATH"
 
-# Add the cloud-init drive
-echo "Adding cloud-init drive..."
+# Add cloud-init drive
+echo "☁️  Adding cloud-init drive..."
 qm set $VMID --ide2 local-lvm:cloudinit
 
-# Set the boot order to the imported disk
-echo "Setting boot order..."
+# Set boot order
+echo "👢 Setting boot order..."
 qm set $VMID --boot order=scsi0
 
 # Convert the VM into a template
-echo "Converting VM to template..."
+echo "✨ Converting VM to template..."
 qm template $VMID
 
 echo "--- Finished on Proxmox Server ---"
@@ -94,7 +99,7 @@ EOF
 
 # Check the exit status of the SSH command
 if [ $? -eq 0 ]; then
-    echo "Success! Ubuntu 22.04 Cloud-Init template (ID: $VMID) is now available on $PROXMOX_HOST."
+    echo "🎉 Success! Proxmox template setup is complete."
 else
-    echo "An error occurred during the remote execution on the Proxmox server."
+    echo "❌ An error occurred during the remote execution on the Proxmox server."
 fi
