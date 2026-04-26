@@ -1,105 +1,182 @@
 #!/bin/bash
 
-# A script to connect to your Proxmox server via ssh and keys and automate the creation of an Ubuntu 22.04 Cloud-Init template on Proxmox.
+# A script to automate the creation of an Ubuntu 22.04 Cloud-Init template on Proxmox.
+
+set -euo pipefail  # Exit on error, undefined vars, pipe failures
 
 # --- Configuration ---
-# Set the VMID you want to use for the template.
-VMID="9000"
-# Set the Ubuntu cloud image URL.
+VMID="${VMID:-9000}"
 IMAGE_URL="https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
-# Get the filename from the URL.
 IMAGE_FILENAME=$(basename "$IMAGE_URL")
-# Define the storage path on the Proxmox server.
 IMAGE_STORAGE_PATH="/var/lib/vz/template/iso"
+STORAGE_POOL="${STORAGE_POOL:-local-lvm}"
+MAX_RETRIES=3
+RETRY_DELAY=5
+
+# --- Color output ---
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+# --- Functions ---
+log_info() {
+    echo -e "${GREEN}ℹ️  $*${NC}"
+}
+
+log_warn() {
+    echo -e "${YELLOW}⚠️  $*${NC}"
+}
+
+log_error() {
+    echo -e "${RED}❌ $*${NC}" >&2
+}
+
+# Retry logic for network operations using curl
+retry_curl() {
+    local url="$1"
+    local output="$2"
+    local attempt=1
+    
+    while [ $attempt -le $MAX_RETRIES ]; do
+        log_info "Downloading (attempt $attempt/$MAX_RETRIES)..."
+        if curl -fsSL --progress-bar --location -o "$output" "$url"; then
+            return 0
+        fi
+        
+        if [ $attempt -lt $MAX_RETRIES ]; then
+            log_warn "Download failed. Retrying in ${RETRY_DELAY}s..."
+            sleep $RETRY_DELAY
+        fi
+        attempt=$((attempt + 1))
+    done
+    
+    return 1
+}
 
 # --- Script Start ---
 echo "Proxmox Ubuntu Cloud-Init Template Setup"
 echo "========================================"
 
-# 1. Get Proxmox server details from user
+# Get Proxmox server details
 read -p "Enter the Proxmox server IP address or hostname: " PROXMOX_HOST
 if [ -z "$PROXMOX_HOST" ]; then
-    echo "❌ Error: Hostname/IP cannot be empty."
+    log_error "Hostname/IP cannot be empty."
     exit 1
 fi
 
-# 2. Check for and generate SSH keys if they don't exist
+# Validate SSH connectivity
+log_info "Validating SSH connection to root@$PROXMOX_HOST..."
+if ! ssh -o ConnectTimeout=5 "root@$PROXMOX_HOST" "echo 'SSH OK'" > /dev/null 2>&1; then
+    log_error "Cannot connect to root@$PROXMOX_HOST"
+    exit 1
+fi
+
+# Check for and generate SSH keys
 SSH_KEY_PATH="$HOME/.ssh/id_rsa"
 if [ ! -f "$SSH_KEY_PATH" ]; then
-    echo "🔑 SSH key not found. Generating a new one..."
-    ssh-keygen -t rsa -b 4096 -f "$SSH_KEY_PATH" -N "" # -N "" for no passphrase
+    log_info "SSH key not found. Generating a new one..."
+    read -sp "Enter passphrase for SSH key (empty for no passphrase): " ssh_pass
+    echo
+    ssh-keygen -t ed25519 -f "$SSH_KEY_PATH" -N "$ssh_pass" -C "proxmox-template"
 else
-    echo "🔑 SSH key already exists at $SSH_KEY_PATH."
+    log_info "SSH key already exists at $SSH_KEY_PATH."
 fi
 
-# 3. Copy SSH key to the Proxmox server
-echo "🔐 Attempting to copy SSH key to root@$PROXMOX_HOST..."
-ssh-copy-id "root@$PROXMOX_HOST"
-if [ $? -ne 0 ]; then
-    echo "❌ Error: Failed to copy SSH key."
-    echo "Please check the following:"
-    echo "  - Ensure SSH is enabled for the 'root' user on your Proxmox server."
-    echo "  - Verify the IP/hostname and the root password are correct."
+# Copy SSH key to Proxmox server
+log_info "Copying SSH key to root@$PROXMOX_HOST..."
+if ! ssh-copy-id -o ConnectTimeout=5 "root@$PROXMOX_HOST" 2>/dev/null; then
+    log_error "Failed to copy SSH key."
+    echo "Please check:"
+    echo "  - SSH is enabled for the 'root' user on Proxmox"
+    echo "  - IP/hostname and root password are correct"
     exit 1
 fi
 
-echo "SSH key copied successfully."
+log_info "SSH setup complete."
 
-# 4. SSH into the Proxmox server and execute commands
-echo "🚀 Connecting to Proxmox server to check/create the template..."
+# Connect and create template
+log_info "Connecting to Proxmox server..."
 
-ssh "root@$PROXMOX_HOST" <<EOF
-# Exit immediately if a command exits with a non-zero status.
-set -e
+if ! ssh "root@$PROXMOX_HOST" bash << 'REMOTE_EOF'
+set -euo pipefail
+
+VMID="9000"
+IMAGE_URL="https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
+IMAGE_FILENAME=$(basename "$IMAGE_URL")
+IMAGE_STORAGE_PATH="/var/lib/vz/template/iso"
+STORAGE_POOL="local-lvm"
+FULL_IMAGE_PATH="$IMAGE_STORAGE_PATH/$IMAGE_FILENAME"
+
+trap 'echo "Error on line $LINENO"' ERR
 
 echo "--- Executing on Proxmox Server ---"
 
-# --- MODIFICATION 1: Check for the template first ---
-# If the template already exists, we exit successfully without doing anything.
-if qm status $VMID > /dev/null 2>&1; then
-    echo "✅ Template $VMID already exists. Nothing to do."
+# Check if template already exists
+if qm status "$VMID" > /dev/null 2>&1; then
+    echo "✅ Template $VMID already exists. Exiting."
     exit 0
 fi
 
-# Create the directory for images if it doesn't exist
-mkdir -p "$IMAGE_STORAGE_PATH"
-FULL_IMAGE_PATH="$IMAGE_STORAGE_PATH/$IMAGE_FILENAME"
-
-# --- MODIFICATION 2: Check for the image before downloading ---
-# Only download the image if it does not already exist locally.
-if [ ! -f "\$FULL_IMAGE_PATH" ]; then
-    echo "📥 Image not found. Downloading Ubuntu 22.04 cloud image..."
-    wget -O "\$FULL_IMAGE_PATH" "$IMAGE_URL"
-else
-    echo "💿 Image file already exists locally. Skipping download."
+# Validate storage pool exists
+if ! pvesm status "$STORAGE_POOL" > /dev/null 2>&1; then
+    echo "❌ Storage pool '$STORAGE_POOL' not found."
+    exit 1
 fi
 
-# Create the VM
-echo "🔧 Creating new VM (ID: $VMID)..."
-qm create $VMID --name "ubuntu-2204-cloudinit-template" --memory 2048 --net0 virtio,bridge=vmbr0 --scsihw virtio-scsi-pci
+# Create directory and download image
+mkdir -p "$IMAGE_STORAGE_PATH"
 
-# Import the disk
-echo "💿 Importing disk to 'local-lvm'..."
-qm set $VMID --scsi0 local-lvm:0,import-from="\$FULL_IMAGE_PATH"
+if [ ! -f "$FULL_IMAGE_PATH" ]; then
+    echo "📥 Downloading Ubuntu 22.04 cloud image..."
+    if ! curl -fsSL --progress-bar --location -o "$FULL_IMAGE_PATH" "$IMAGE_URL"; then
+        rm -f "$FULL_IMAGE_PATH"
+        echo "❌ Download failed."
+        exit 1
+    fi
+else
+    echo "💿 Image already cached locally."
+fi
+
+# Verify image integrity
+echo "🔍 Verifying image..."
+file "$FULL_IMAGE_PATH" | grep -q "QEMU" || {
+    echo "❌ Invalid image format."
+    exit 1
+}
+
+# Create the VM
+echo "🔧 Creating VM (ID: $VMID)..."
+qm create "$VMID" \
+    --name "ubuntu-2204-cloudinit-template" \
+    --memory 2048 \
+    --cores 2 \
+    --net0 virtio,bridge=vmbr0 \
+    --scsihw virtio-scsi-pci \
+    --serial0 socket
+
+# Import disk
+echo "💿 Importing disk..."
+qm set "$VMID" --scsi0 "$STORAGE_POOL:0,import-from=$FULL_IMAGE_PATH"
 
 # Add cloud-init drive
 echo "☁️  Adding cloud-init drive..."
-qm set $VMID --ide2 local-lvm:cloudinit
+qm set "$VMID" --ide2 "$STORAGE_POOL:cloudinit"
 
-# Set boot order
-echo "👢 Setting boot order..."
-qm set $VMID --boot order=scsi0
+# Set boot order and other options
+echo "👢 Configuring boot and hardware..."
+qm set "$VMID" --boot order=scsi0 --agent 1
 
-# Convert the VM into a template
-echo "✨ Converting VM to template..."
-qm template $VMID
+# Convert to template
+echo "✨ Converting to template..."
+qm template "$VMID"
 
-echo "--- Finished on Proxmox Server ---"
-EOF
-
-# Check the exit status of the SSH command
-if [ $? -eq 0 ]; then
-    echo "🎉 Success! Proxmox template setup is complete."
-else
-    echo "❌ An error occurred during the remote execution on the Proxmox server."
+echo "✅ Template creation complete."
+REMOTE_EOF
+then
+    log_error "Template creation failed on remote server."
+    exit 1
 fi
+
+log_info "🎉 Success! Proxmox template setup is complete."
+log_info "Template ID: $VMID"
