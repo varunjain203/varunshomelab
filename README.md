@@ -50,13 +50,13 @@ cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 ```
 
 Edit `terraform.tfvars` with your Proxmox details:
-
+```
 PROXMOX_URL = "https://your-proxmox-server:8006/api2/json"
 PROXMOX_USER = "terraform@pve!provider"
 PROXMOX_TOKEN = "put-api-token-here"
 PUBLIC_SSH_KEY = "put-contents-of-id_rsa.pub"
 target_node = "name-of-the-proxmox-node"
-
+```
 
 ### 3. Deploy the Lab
 
