@@ -49,7 +49,7 @@ If the manual steps above are difficult to follow, simply run the setup script -
 
 ```bash
 chmod +x scripts/setup.sh
-./scripts/setup.sh
+./scripts/create_qemu_template.sh
 ```
 
 The script will create the Ubuntu template and proceed with full cluster deployment.
