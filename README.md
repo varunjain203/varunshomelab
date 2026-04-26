@@ -29,6 +29,8 @@ This project sets up a complete Kubernetes cluster in a Proxmox home lab environ
 
 Create the Ubuntu template:
 
+**Option A: Manual Setup** (if you prefer step-by-step control)
+
 ```bash
 # Download Ubuntu cloud image
 wget -O /tmp/jammy-server-cloudimg-amd64.img https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
@@ -40,6 +42,17 @@ root@catan:/var/lib/vz/template/iso# qm set 9000 --ide2 local-lvm:cloudinit
 root@catan:/var/lib/vz/template/iso# qm set 9000 --boot order=scsi0
 root@catan:/var/lib/vz/template/iso# qm template 9000
 ```
+
+**Option B: Automated Setup** (recommended if manual steps are complex)
+
+If the manual steps above are difficult to follow, simply run the setup script - it handles template creation automatically:
+
+```bash
+chmod +x scripts/setup.sh
+./scripts/setup.sh
+```
+
+The script will create the Ubuntu template and proceed with full cluster deployment.
 
 ### 2. Configure Variables
 
