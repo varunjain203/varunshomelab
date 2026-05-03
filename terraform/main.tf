@@ -66,8 +66,10 @@ resource "proxmox_vm_qemu" "k8s_master" {
   full_clone  = true
   
   # VM Configuration
-  cores    = 2
-  sockets  = 1
+  cpu {
+    cores   = 2
+    sockets = 1
+  }
   memory   = 2048
   agent    = 1
   vmid     = "10${count.index +1}"
@@ -134,8 +136,10 @@ resource "proxmox_vm_qemu" "k8s_worker" {
   full_clone  = true
   
   # VM Configuration
-  cores    = 2
-  sockets  = 1
+  cpu {
+    cores   = 2
+    sockets = 1
+  }
   memory   = 4096
   agent    = 1
   vmid     = "20${count.index +1}"
@@ -207,8 +211,10 @@ resource "proxmox_vm_qemu" "k8s_lb" {
   full_clone  = true
   
   # VM Configuration
-  cores    = 2
-  sockets  = 1
+  cpu {
+    cores   = 2
+    sockets = 1
+  }
   memory   = 4096
   agent    = 1
   vmid     = "400"
