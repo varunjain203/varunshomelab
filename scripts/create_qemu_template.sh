@@ -10,8 +10,6 @@ IMAGE_URL="https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-a
 IMAGE_FILENAME=$(basename "$IMAGE_URL")
 IMAGE_STORAGE_PATH="/var/lib/vz/template/iso"
 STORAGE_POOL="${STORAGE_POOL:-local-lvm}"
-MAX_RETRIES=3
-RETRY_DELAY=5
 
 # --- Color output ---
 RED='\033[0;31m'
@@ -30,28 +28,6 @@ log_warn() {
 
 log_error() {
     echo -e "${RED}❌ $*${NC}" >&2
-}
-
-# Retry logic for network operations using curl
-retry_curl() {
-    local url="$1"
-    local output="$2"
-    local attempt=1
-    
-    while [ $attempt -le $MAX_RETRIES ]; do
-        log_info "Downloading (attempt $attempt/$MAX_RETRIES)..."
-        if curl -fsSL --progress-bar --location -o "$output" "$url"; then
-            return 0
-        fi
-        
-        if [ $attempt -lt $MAX_RETRIES ]; then
-            log_warn "Download failed. Retrying in ${RETRY_DELAY}s..."
-            sleep $RETRY_DELAY
-        fi
-        attempt=$((attempt + 1))
-    done
-    
-    return 1
 }
 
 # --- Script Start ---
@@ -107,6 +83,29 @@ IMAGE_FILENAME=$(basename "$IMAGE_URL")
 IMAGE_STORAGE_PATH="/var/lib/vz/template/iso"
 STORAGE_POOL="local-lvm"
 FULL_IMAGE_PATH="$IMAGE_STORAGE_PATH/$IMAGE_FILENAME"
+MAX_RETRIES=3
+RETRY_DELAY=5
+
+retry_curl() {
+    local url="$1"
+    local output="$2"
+    local attempt=1
+    
+    while [ $attempt -le $MAX_RETRIES ]; do
+        echo "Downloading (attempt $attempt/$MAX_RETRIES)..."
+        if curl -fsSL --progress-bar --location -o "$output" "$url"; then
+            return 0
+        fi
+        
+        if [ $attempt -lt $MAX_RETRIES ]; then
+            echo "Download failed. Retrying in ${RETRY_DELAY}s..."
+            sleep $RETRY_DELAY
+        fi
+        attempt=$((attempt + 1))
+    done
+    
+    return 1
+}
 
 trap 'echo "Error on line $LINENO"' ERR
 
@@ -129,7 +128,7 @@ mkdir -p "$IMAGE_STORAGE_PATH"
 
 if [ ! -f "$FULL_IMAGE_PATH" ]; then
     echo "📥 Downloading Ubuntu 22.04 cloud image..."
-    if ! curl -fsSL --progress-bar --location -o "$FULL_IMAGE_PATH" "$IMAGE_URL"; then
+    if ! retry_curl "$IMAGE_URL" "$FULL_IMAGE_PATH"; then
         rm -f "$FULL_IMAGE_PATH"
         echo "❌ Download failed."
         exit 1
