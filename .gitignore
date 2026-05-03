@@ -10,3 +10,5 @@ id_rsa.pub
 *.lock.hcl
 *.lock.info
 hosts.yml
+LICENSE.txt
+terraform-provider-*
