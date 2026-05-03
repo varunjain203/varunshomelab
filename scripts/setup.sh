@@ -93,12 +93,8 @@ echo ""
 log_info "Initializing Terraform..."
 cd terraform
 
-if [ ! -d ".terraform" ]; then
-    terraform init
-    log_success "Terraform initialized"
-else
-    log_info "Terraform already initialized, skipping init"
-fi
+terraform init
+log_success "Terraform initialized"
 
 log_info "Planning Terraform deployment..."
 terraform plan -out=tfplan
