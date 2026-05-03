@@ -11,4 +11,5 @@ id_rsa.pub
 *.lock.info
 hosts.yml
 LICENSE.txt
+tfplan
 terraform-provider-*
