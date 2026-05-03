@@ -36,7 +36,15 @@
     state: directory
 
 - name: Generate containerd config
-  shell: containerd config default > /etc/containerd/config.toml
+  command: containerd config default
+  register: containerd_default_config
+  changed_when: false
+
+- name: Write containerd config
+  copy:
+    content: "{{ containerd_default_config.stdout }}\n"
+    dest: /etc/containerd/config.toml
+    force: no
 
 - name: Configure containerd to use systemd cgroup driver
   lineinfile:
@@ -50,4 +58,3 @@
     state: restarted
     enabled: yes
     daemon_reload: yes
-

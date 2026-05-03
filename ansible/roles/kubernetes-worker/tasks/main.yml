@@ -6,5 +6,5 @@
   register: kubelet_conf
 
 - name: Join worker nodes to cluster
-  shell: "{{ hostvars[groups['kube_control_plane'][0]]['join_command_workers']['stdout'] }}"
+  command: "{{ hostvars[groups['kube_control_plane'][0]]['join_command_workers']['stdout'] }}"
   when: not kubelet_conf.stat.exists
