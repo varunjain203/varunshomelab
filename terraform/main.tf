@@ -85,7 +85,7 @@ resource "proxmox_vm_qemu" "k8s_master" {
   network {
     id     = 0
     model  = "virtio"
-    bridge = "vmbr0"
+    bridge = "vmbr1"
   }
   scsihw = "virtio-scsi-single"
   # Disk
@@ -155,7 +155,7 @@ resource "proxmox_vm_qemu" "k8s_worker" {
   network {
     id     = 0
     model  = "virtio"
-    bridge = "vmbr0"
+    bridge = "vmbr1"
   }
   scsihw = "virtio-scsi-single"
   # Disk
@@ -230,7 +230,7 @@ resource "proxmox_vm_qemu" "k8s_lb" {
   network {
     id     = 0
     model  = "virtio"
-    bridge = "vmbr0"
+    bridge = "vmbr1"
   }
   
   scsihw = "virtio-scsi-single"
