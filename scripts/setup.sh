@@ -4,6 +4,9 @@
 
 set -e
 
+# Ensure we are executing from the root of the repository
+cd "$(dirname "$0")/.."
+
 # --- Color output ---
 RED='\033[0;31m'
 GREEN='\033[0;32m'
