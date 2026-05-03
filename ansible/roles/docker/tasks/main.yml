@@ -44,7 +44,7 @@
   copy:
     content: "{{ containerd_default_config.stdout }}\n"
     dest: /etc/containerd/config.toml
-    force: no
+    force: yes
 
 - name: Configure containerd to use systemd cgroup driver
   lineinfile:
@@ -58,3 +58,8 @@
     state: restarted
     enabled: yes
     daemon_reload: yes
+
+- name: Wait for containerd socket to be ready
+  wait_for:
+    path: /var/run/containerd/containerd.sock
+    timeout: 30
