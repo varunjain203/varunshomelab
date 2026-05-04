@@ -25,31 +25,13 @@ This project sets up a complete Kubernetes cluster in a Proxmox home lab environ
 
 ## Setup Instructions
 
-### 1. Prepare Proxmox Template
+### 1. Run the Setup Wizard
 
-Create the Ubuntu template:
-
-**Option A: Manual Setup** (if you prefer step-by-step control)
-
-```bash
-# Download Ubuntu cloud image
-wget -O /tmp/jammy-server-cloudimg-amd64.img https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
-
-# Create VM and convert to template
-root@catan:/var/lib/vz/template/iso# qm create 9000 --memory 2048 --net0 virtio,bridge=vmbr0 --scsihw virtio-scsi-pci
-root@catan:/var/lib/vz/template/iso# qm set 9000 --scsi0 local-lvm:0,import-from=/var/lib/vz/template/iso/jammy-server-cloudimg-amd64.img
-root@catan:/var/lib/vz/template/iso# qm set 9000 --ide2 local-lvm:cloudinit
-root@catan:/var/lib/vz/template/iso# qm set 9000 --boot order=scsi0
-root@catan:/var/lib/vz/template/iso# qm template 9000
-```
-
-**Option B: Automated Setup** (recommended if manual steps are complex)
-
-If the manual steps above are difficult to follow, simply run the setup script - it handles template creation automatically:
+The easiest way to deploy the lab is to run the automated setup script. It will check your environment, automatically generate the configuration file, build the Proxmox template, and deploy the entire cluster.
 
 ```bash
 chmod +x scripts/setup.sh
-./scripts/create_qemu_template.sh
+./scripts/setup.sh
 ```
 
 The script will create the Ubuntu template and proceed with full cluster deployment.

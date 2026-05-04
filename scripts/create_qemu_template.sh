@@ -41,7 +41,7 @@ PROXMOX_HOST=""
 if [ -f "$TFVARS_FILE" ]; then
     if grep -qE '^[[:space:]]*PROXMOX_URL' "$TFVARS_FILE"; then
         PROXMOX_URL=$(grep -E '^[[:space:]]*PROXMOX_URL' "$TFVARS_FILE" | cut -d'"' -f2 | head -n 1)
-        if [ -n "$PROXMOX_URL" ]; then
+        if [ -n "$PROXMOX_URL" ] && [[ "$PROXMOX_URL" != *"your-proxmox-server"* ]]; then
             PROXMOX_HOST=$(echo "$PROXMOX_URL" | sed -E 's~^https?://([^/:]+).*~\1~')
             log_info "Extracted Proxmox host ($PROXMOX_HOST) from terraform.tfvars."
         fi

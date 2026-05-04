@@ -66,7 +66,20 @@ TERRAFORM_VARS_FILE="terraform/terraform.tfvars"
 
 # Check if terraform.tfvars exists
 if [ ! -f "$TERRAFORM_VARS_FILE" ]; then
-    log_error "Please create terraform/$TERRAFORM_VARS_FILE from terraform/terraform.tfvars.example"
+    log_warn "terraform.tfvars not found. Auto-generating from example..."
+    cp "terraform/terraform.tfvars.example" "$TERRAFORM_VARS_FILE"
+    
+    # Auto-fill SSH key if available
+    if [ -f "$HOME/.ssh/id_ed25519.pub" ]; then
+        SSH_KEY=$(cat "$HOME/.ssh/id_ed25519.pub")
+        sed -i.bak "s|put-contents-of-id_rsa.pub|$SSH_KEY|" "$TERRAFORM_VARS_FILE" && rm -f "${TERRAFORM_VARS_FILE}.bak"
+    elif [ -f "$HOME/.ssh/id_rsa.pub" ]; then
+        SSH_KEY=$(cat "$HOME/.ssh/id_rsa.pub")
+        sed -i.bak "s|put-contents-of-id_rsa.pub|$SSH_KEY|" "$TERRAFORM_VARS_FILE" && rm -f "${TERRAFORM_VARS_FILE}.bak"
+    fi
+    
+    log_error "I have created $TERRAFORM_VARS_FILE and injected your SSH key."
+    log_error "Please edit it with your Proxmox IP and Node Name, then run ./scripts/setup.sh again."
     exit 1
 fi
 
@@ -78,6 +91,13 @@ else
 fi
 
 PROXMOX_URL=$(grep -E '^[[:space:]]*PROXMOX_URL' "$TERRAFORM_VARS_FILE" | cut -d'"' -f2 | head -n 1 || true)
+
+if [[ "$PROXMOX_URL" == *"your-proxmox-server"* ]]; then
+    log_error "You still have 'your-proxmox-server' in your $TERRAFORM_VARS_FILE."
+    log_error "Please update it with your actual Proxmox IP or hostname before running setup."
+    exit 1
+fi
+
 if [ -n "$PROXMOX_URL" ]; then
     PROXMOX_HOST=$(echo "$PROXMOX_URL" | sed -E 's~^https?://([^/:]+).*~\1~')
     

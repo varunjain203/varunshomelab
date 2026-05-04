@@ -1,8 +1,32 @@
 # terraform/terraform.tfvars.example
 
+# ------------------------------------------------------------------------
+# PROXMOX CONNECTION DETAILS
+# ------------------------------------------------------------------------
+
+# The URL to your Proxmox API. 
+# Replace 'your-proxmox-server' with your actual Proxmox IP or hostname.
 PROXMOX_URL = "https://your-proxmox-server:8006/api2/json"
-PROXMOX_USER = "terraform@pve!provider"
-PROXMOX_TOKEN_PASSWORD = "put-api-token-here"
-PUBLIC_SSH_KEY = "put-contents-of-id_rsa.pub"
+
+# The exact Proxmox node name where the VMs will be created.
+# Found in the top-left of the Proxmox Web UI (e.g., "pve" or "catan").
 target_node = "name-of-the-proxmox-node"
-vm_template = "name-of-the-vm-template"
+
+# The user and API token to authenticate Terraform.
+# Format: username@realm!token_id
+PROXMOX_USER = "terraform@pve!provider"
+
+# The actual secret password for the token above.
+# The setup script will offer to automatically create this for you on Proxmox!
+PROXMOX_TOKEN_PASSWORD = "put-api-token-here"
+
+# ------------------------------------------------------------------------
+# VM CONFIGURATION
+# ------------------------------------------------------------------------
+
+# Your public SSH key. This will be injected into all VMs so Ansible can connect.
+PUBLIC_SSH_KEY = "put-contents-of-id_rsa.pub"
+
+# The name of the VM template to clone.
+# The setup script creates this for you, so you can leave it as-is.
+vm_template = "ubuntu-2204-cloudinit-template"
