@@ -196,3 +196,16 @@ fi
 
 log_info "🎉 Success! Proxmox template setup is complete."
 log_info "Template ID: $VMID"
+
+# Automatically update terraform.tfvars with the template name
+TEMPLATE_NAME="ubuntu-2204-cloudinit-template"
+if [ -f "$TFVARS_FILE" ]; then
+    log_info "Ensuring vm_template is set in terraform.tfvars..."
+    if grep -q "^[[:space:]]*vm_template" "$TFVARS_FILE"; then
+        sed -i.bak "s/^[[:space:]]*vm_template.*/vm_template = \"$TEMPLATE_NAME\"/" "$TFVARS_FILE"
+        rm -f "${TFVARS_FILE}.bak"
+    else
+        echo "" >> "$TFVARS_FILE"
+        echo "vm_template = \"$TEMPLATE_NAME\"" >> "$TFVARS_FILE"
+    fi
+fi
