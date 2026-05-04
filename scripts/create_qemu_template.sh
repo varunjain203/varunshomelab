@@ -135,7 +135,7 @@ if qm status "$VMID" > /dev/null 2>&1; then
 fi
 
 # Validate storage pool exists
-if ! pvesm status "$STORAGE_POOL" > /dev/null 2>&1; then
+if ! pvesm status | awk '{print $1}' | grep -x -q "$STORAGE_POOL"; then
     echo "❌ Storage pool '$STORAGE_POOL' not found."
     exit 1
 fi
