@@ -34,11 +34,28 @@ log_error() {
 echo "Proxmox Ubuntu Cloud-Init Template Setup"
 echo "========================================"
 
-# Get Proxmox server details
-read -p "Enter the Proxmox server IP address or hostname: " PROXMOX_HOST
+# Try to extract Proxmox host from terraform.tfvars
+TFVARS_FILE="$(dirname "$0")/../terraform/terraform.tfvars"
+PROXMOX_HOST=""
+
+if [ -f "$TFVARS_FILE" ]; then
+    if grep -qE '^[[:space:]]*PROXMOX_URL' "$TFVARS_FILE"; then
+        PROXMOX_URL=$(grep -E '^[[:space:]]*PROXMOX_URL' "$TFVARS_FILE" | cut -d'"' -f2 | head -n 1)
+        if [ -n "$PROXMOX_URL" ]; then
+            PROXMOX_HOST=$(echo "$PROXMOX_URL" | sed -E 's~^https?://([^/:]+).*~\1~')
+            log_info "Extracted Proxmox host ($PROXMOX_HOST) from terraform.tfvars."
+        fi
+    fi
+fi
+
+# Fallback to manual input if not found
 if [ -z "$PROXMOX_HOST" ]; then
-    log_error "Hostname/IP cannot be empty."
-    exit 1
+
+    read -p "Enter the Proxmox server IP address or hostname: " PROXMOX_HOST
+    if [ -z "$PROXMOX_HOST" ]; then
+        log_error "Hostname/IP cannot be empty."
+        exit 1
+    fi
 fi
 
 # Validate SSH connectivity

@@ -2,7 +2,7 @@
 
 PROXMOX_URL = "https://your-proxmox-server:8006/api2/json"
 PROXMOX_USER = "terraform@pve!provider"
-PROXMOX_TOKEN = "put-api-token-here"
+PROXMOX_TOKEN_PASSWORD = "put-api-token-here"
 PUBLIC_SSH_KEY = "put-contents-of-id_rsa.pub"
 target_node = "name-of-the-proxmox-node"
 vm_template = "name-of-the-vm-template"

@@ -77,6 +77,61 @@ else
     log_warn "Could not verify Proxmox URL in terraform.tfvars"
 fi
 
+PROXMOX_URL=$(grep -E '^[[:space:]]*PROXMOX_URL' "$TERRAFORM_VARS_FILE" | cut -d'"' -f2 | head -n 1 || true)
+if [ -n "$PROXMOX_URL" ]; then
+    PROXMOX_HOST=$(echo "$PROXMOX_URL" | sed -E 's~^https?://([^/:]+).*~\1~')
+    
+    echo ""
+    log_info "Proxmox User & API Token Setup"
+    read -p "Do you want to automatically create the Terraform user and API token on Proxmox ($PROXMOX_HOST)? (y/n): " CREATE_USER
+    if [[ "$CREATE_USER" =~ ^[Yy]$ ]]; then
+        log_info "Connecting to $PROXMOX_HOST to configure user and token..."
+        
+        TOKEN_OUTPUT=$(ssh -o ConnectTimeout=5 "root@$PROXMOX_HOST" bash << 'EOF' || echo "SSH_FAILED"
+if ! pveum user list 2>/dev/null | grep -q "terraform@pve"; then
+    pveum user add terraform@pve --comment "Terraform automation user" >/dev/null 2>&1
+fi
+
+pveum aclmod / --user terraform@pve --role Administrator >/dev/null 2>&1
+
+if pveum user token list terraform@pve 2>/dev/null | grep -q "provider"; then
+    echo "TOKEN_EXISTS"
+else
+    pveum user token add terraform@pve provider --privsep 0 --output-format json 2>/dev/null
+fi
+EOF
+)
+        
+        if [ "$TOKEN_OUTPUT" == "SSH_FAILED" ]; then
+            log_error "Failed to connect to Proxmox host via SSH."
+        elif [ "$TOKEN_OUTPUT" == "TOKEN_EXISTS" ]; then
+            log_warn "The token 'provider' for user 'terraform@pve' already exists."
+            log_warn "If you lost the password, please recreate it manually on the Proxmox server."
+        elif [ -n "$TOKEN_OUTPUT" ]; then
+            # Extract value using grep and cut to avoid dependency on jq
+            TOKEN_SECRET=$(echo "$TOKEN_OUTPUT" | grep -o '"value":"[^"]*"' | cut -d'"' -f4)
+            
+            if [ -n "$TOKEN_SECRET" ]; then
+                log_success "User and API token created successfully!"
+                echo ""
+                echo -e "${YELLOW}======================================================================${NC}"
+                echo -e "${YELLOW}                  PROXMOX API CREDENTIALS${NC}"
+                echo -e "${YELLOW}======================================================================${NC}"
+                echo -e "${YELLOW}PROXMOX_USER = \"terraform@pve!provider\"${NC}"
+                echo -e "${YELLOW}PROXMOX_TOKEN_PASSWORD = \"$TOKEN_SECRET\"${NC}"
+                echo -e "${YELLOW}======================================================================${NC}"
+                echo ""
+                log_warn "IMPORTANT: Please update $TERRAFORM_VARS_FILE with these values!"
+                read -p "Press Enter to continue once you have updated the file..."
+            else
+                log_error "Failed to parse the token password from the JSON output."
+            fi
+        else
+            log_error "Failed to create the user and token."
+        fi
+    fi
+fi
+
 # Run template creation if not already present
 # The script itself will check and skip if the template exists
 log_info "Running QEMU template setup (will skip if already exists)..."

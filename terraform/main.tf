@@ -17,7 +17,7 @@ terraform {
 provider "proxmox" {
   pm_api_url = var.PROXMOX_URL
   pm_api_token_id = var.PROXMOX_USER
-  pm_api_token_secret = var.PROXMOX_TOKEN
+  pm_api_token_secret = var.PROXMOX_TOKEN_PASSWORD
   pm_tls_insecure = true
 }
 
@@ -34,7 +34,7 @@ variable "PROXMOX_USER" {
   default     = "root@pam"
 }
 
-variable "PROXMOX_TOKEN" {
+variable "PROXMOX_TOKEN_PASSWORD" {
   description = "Proxmox token"
   type        = string
   sensitive   = true
