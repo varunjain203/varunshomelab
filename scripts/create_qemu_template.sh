@@ -166,7 +166,7 @@ echo "🔧 Creating VM (ID: $VMID)..."
 qm create "$VMID" \
     --name "ubuntu-2204-cloudinit-template" \
     --memory 2048 \
-    --cores 2 \
+    --cores 1 \
     --net0 virtio,bridge=vmbr0 \
     --scsihw virtio-scsi-pci \
     --serial0 socket
