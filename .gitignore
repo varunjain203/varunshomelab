@@ -6,6 +6,7 @@ id_rsa.pub
 *.log
 .DS_Store
 *.tfstate
+*.swp
 *.tfstate.backup
 *.lock.hcl
 *.lock.info

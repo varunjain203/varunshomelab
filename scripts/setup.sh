@@ -91,6 +91,7 @@ else
 fi
 
 PROXMOX_URL=$(grep -E '^[[:space:]]*PROXMOX_URL' "$TERRAFORM_VARS_FILE" | cut -d'"' -f2 | head -n 1 || true)
+CURRENT_TOKEN=$(grep -E '^[[:space:]]*PROXMOX_TOKEN_PASSWORD' "$TERRAFORM_VARS_FILE" | cut -d'"' -f2 | head -n 1 || true)
 
 if [[ "$PROXMOX_URL" == *"your-proxmox-server"* ]]; then
     log_error "You still have 'your-proxmox-server' in your $TERRAFORM_VARS_FILE."
@@ -98,7 +99,7 @@ if [[ "$PROXMOX_URL" == *"your-proxmox-server"* ]]; then
     exit 1
 fi
 
-if [ -n "$PROXMOX_URL" ]; then
+if [ -n "$PROXMOX_URL" ] && [[ "$CURRENT_TOKEN" == "put-api-token-here" || -z "$CURRENT_TOKEN" ]]; then
     PROXMOX_HOST=$(echo "$PROXMOX_URL" | sed -E 's~^https?://([^/:]+).*~\1~')
     
     echo ""
@@ -107,14 +108,14 @@ if [ -n "$PROXMOX_URL" ]; then
     if [[ "$CREATE_USER" =~ ^[Yy]$ ]]; then
         log_info "Connecting to $PROXMOX_HOST to configure user and token..."
         
-        TOKEN_OUTPUT=$(ssh -o ConnectTimeout=5 "root@$PROXMOX_HOST" bash << 'EOF' || echo "SSH_FAILED"
-if ! pveum user list 2>/dev/null | grep -q "terraform@pve"; then
+        TOKEN_OUTPUT=$(ssh -q -o ConnectTimeout=5 "root@$PROXMOX_HOST" bash << 'EOF' || echo "SSH_FAILED"
+if ! pveum user list --output-format json 2>/dev/null | grep -q '"userid":"terraform@pve"'; then
     pveum user add terraform@pve --comment "Terraform automation user" >/dev/null 2>&1
 fi
 
 pveum aclmod / --user terraform@pve --role Administrator >/dev/null 2>&1
 
-if pveum user token list terraform@pve 2>/dev/null | grep -q "provider"; then
+if pveum user token list terraform@pve --output-format json 2>/dev/null | grep -q '"tokenid":"provider"'; then
     echo "TOKEN_EXISTS"
 else
     pveum user token add terraform@pve provider --privsep 0 --output-format json 2>/dev/null
@@ -122,12 +123,12 @@ fi
 EOF
 )
         
-        if [ "$TOKEN_OUTPUT" == "SSH_FAILED" ]; then
+        if [[ "$TOKEN_OUTPUT" == *"SSH_FAILED"* ]]; then
             log_error "Failed to connect to Proxmox host via SSH."
-        elif [ "$TOKEN_OUTPUT" == "TOKEN_EXISTS" ]; then
+        elif [[ "$TOKEN_OUTPUT" == *"TOKEN_EXISTS"* ]]; then
             log_warn "The token 'provider' for user 'terraform@pve' already exists."
             log_warn "If you lost the password, please recreate it manually on the Proxmox server."
-        elif [ -n "$TOKEN_OUTPUT" ]; then
+        elif [[ "$TOKEN_OUTPUT" == *"\"value\":"* ]]; then
             # Extract value using grep and cut to avoid dependency on jq
             TOKEN_SECRET=$(echo "$TOKEN_OUTPUT" | grep -o '"value":"[^"]*"' | cut -d'"' -f4)
             
